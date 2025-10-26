@@ -4,11 +4,12 @@ import jwt from 'jsonwebtoken';
 import prisma from '../config/database';
 import env from '../config/env';
 import { AppError } from '../middleware/errorHandler';
+import { AuthRequest } from '../types';
 
 export class AuthController {
   async register(req: Request, res: Response) {
     try {
-      const { email, password, name, role, phone, address } = req.body;
+      const { email, password, firstName, lastName, lawFirm, legalSpecialty } = req.body;
 
       // Vérifier si l'utilisateur existe déjà
       const existingUser = await prisma.user.findUnique({
@@ -27,18 +28,18 @@ export class AuthController {
         data: {
           email,
           password: hashedPassword,
-          name,
-          role: role || 'CLIENT',
-          phone,
-          address,
+          firstName,
+          lastName,
+          lawFirm,
+          legalSpecialty,
         },
         select: {
           id: true,
           email: true,
-          name: true,
-          role: true,
-          phone: true,
-          address: true,
+          firstName: true,
+          lastName: true,
+          lawFirm: true,
+          legalSpecialty: true,
           createdAt: true,
         },
       });
@@ -48,7 +49,6 @@ export class AuthController {
         {
           id: user.id,
           email: user.email,
-          role: user.role,
         },
         env.JWT_SECRET,
         { expiresIn: '7d' }
@@ -89,7 +89,6 @@ export class AuthController {
         {
           id: user.id,
           email: user.email,
-          role: user.role,
         },
         env.JWT_SECRET,
         { expiresIn: '7d' }
@@ -100,10 +99,10 @@ export class AuthController {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name,
-          role: user.role,
-          phone: user.phone,
-          address: user.address,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          lawFirm: user.lawFirm,
+          legalSpecialty: user.legalSpecialty,
         },
         token,
       });
@@ -112,19 +111,19 @@ export class AuthController {
     }
   }
 
-  async getProfile(req: Request, res: Response) {
+  async getProfile(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user.id;
+      const userId = req.user!.id;
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: {
           id: true,
           email: true,
-          name: true,
-          role: true,
-          phone: true,
-          address: true,
+          firstName: true,
+          lastName: true,
+          lawFirm: true,
+          legalSpecialty: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -140,25 +139,26 @@ export class AuthController {
     }
   }
 
-  async updateProfile(req: Request, res: Response) {
+  async updateProfile(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user.id;
-      const { name, phone, address } = req.body;
+      const userId = req.user!.id;
+      const { firstName, lastName, lawFirm, legalSpecialty } = req.body;
 
       const user = await prisma.user.update({
         where: { id: userId },
         data: {
-          name,
-          phone,
-          address,
+          firstName,
+          lastName,
+          lawFirm,
+          legalSpecialty,
         },
         select: {
           id: true,
           email: true,
-          name: true,
-          role: true,
-          phone: true,
-          address: true,
+          firstName: true,
+          lastName: true,
+          lawFirm: true,
+          legalSpecialty: true,
           updatedAt: true,
         },
       });
