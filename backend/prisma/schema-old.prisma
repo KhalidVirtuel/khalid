@@ -1,0 +1,207 @@
+// Prisma Schema for Jure AI - Cabinet d'avocat
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Modèle Utilisateur (Avocat ou Client)
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(CLIENT)
+  phone     String?
+  address   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  projects         Project[]
+  messages         Message[]
+  documents        Document[]
+  conversationSessions ConversationSession[]
+
+  @@index([email])
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  LAWYER
+  CLIENT
+}
+
+// Modèle Projet (Dossier juridique)
+model Project {
+  id          String        @id @default(uuid())
+  title       String
+  description String        @db.Text
+  status      ProjectStatus @default(OPEN)
+  priority    Priority      @default(MEDIUM)
+  userId      String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents            Document[]
+  conversationSessions ConversationSession[]
+  contracts            Contract[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING
+  CLOSED
+  ARCHIVED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// Modèle Document
+model Document {
+  id           String       @id @default(uuid())
+  title        String
+  filename     String
+  filepath     String
+  filesize     Int
+  mimetype     String
+  documentType DocumentType @default(OTHER)
+  projectId    String?
+  userId       String
+  isIndexed    Boolean      @default(false) // Pour le RAG
+  qdrantId     String?      @unique // ID dans Qdrant
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([isIndexed])
+  @@map("documents")
+}
+
+enum DocumentType {
+  CONTRACT
+  LEGAL_NOTICE
+  COURT_DECISION
+  CORRESPONDENCE
+  ID_DOCUMENT
+  PROOF
+  OTHER
+}
+
+// Modèle Session de Conversation
+model ConversationSession {
+  id        String   @id @default(uuid())
+  title     String
+  projectId String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  messages Message[]
+
+  @@index([userId])
+  @@index([projectId])
+  @@map("conversation_sessions")
+}
+
+// Modèle Message (Conversation)
+model Message {
+  id          String      @id @default(uuid())
+  sessionId   String
+  userId      String
+  role        MessageRole
+  content     String      @db.Text
+  audioUrl    String?     // Pour les messages audio
+  messageType MessageType @default(TEXT)
+  createdAt   DateTime    @default(now())
+
+  // Relations
+  session ConversationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([userId])
+  @@map("messages")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum MessageType {
+  TEXT
+  AUDIO
+  IMAGE
+}
+
+// Modèle Contrat (Généré ou Édité)
+model Contract {
+  id          String         @id @default(uuid())
+  title       String
+  content     String         @db.LongText
+  projectId   String
+  status      ContractStatus @default(DRAFT)
+  version     Int            @default(1)
+  generatedBy String?        // "AI" ou user ID
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([status])
+  @@map("contracts")
+}
+
+enum ContractStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  SIGNED
+  ARCHIVED
+}
+
+// Modèle Historique d'actions
+model ActivityLog {
+  id          String   @id @default(uuid())
+  userId      String
+  action      String
+  entityType  String
+  entityId    String
+  description String   @db.Text
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}

@@ -1,4 +1,4 @@
-// Prisma Schema for Jure AI - Cabinet d'avocat
+// Prisma Schema adapté au frontend Jure-AX
 
 generator client {
   provider = "prisma-client-js"
@@ -9,62 +9,140 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Modèle Utilisateur (Avocat ou Client)
+// Modèle Utilisateur (Profile)
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      UserRole @default(CLIENT)
-  phone     String?
-  address   String?  @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(uuid())
+  email          String   @unique
+  password       String
+  firstName      String   @map("first_name")
+  lastName       String   @map("last_name")
+  lawFirm        String?  @map("law_firm")
+  legalSpecialty String?  @map("legal_specialty")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   // Relations
-  projects         Project[]
-  messages         Message[]
-  documents        Document[]
-  conversationSessions ConversationSession[]
+  folders       Folder[]
+  conversations Conversation[]
+  messages      Message[]
 
   @@index([email])
   @@map("users")
 }
 
-enum UserRole {
-  ADMIN
-  LAWYER
-  CLIENT
-}
-
-// Modèle Projet (Dossier juridique)
-model Project {
-  id          String        @id @default(uuid())
-  title       String
-  description String        @db.Text
-  status      ProjectStatus @default(OPEN)
-  priority    Priority      @default(MEDIUM)
-  userId      String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+// Modèle Dossier (Folder)
+model Folder {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String
+  description String?  @db.Text
+  color       String   @default("#3b82f6")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  documents            Document[]
-  conversationSessions ConversationSession[]
-  contracts            Contract[]
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments  Attachment[]
+  timeline     TimelineEntry[]
+  documents    GeneratedDocument[]
+  deadlines    Deadline[]
+  conversations Conversation[]
 
   @@index([userId])
-  @@index([status])
-  @@map("projects")
+  @@map("folders")
 }
 
-enum ProjectStatus {
-  OPEN
-  IN_PROGRESS
-  PENDING
-  CLOSED
-  ARCHIVED
+// Modèle Pièce Jointe (Attachment)
+model Attachment {
+  id         String         @id @default(uuid())
+  folderId   String         @map("folder_id")
+  name       String
+  type       AttachmentType
+  url        String
+  size       Int
+  uploadedAt DateTime       @default(now()) @map("uploaded_at")
+
+  // Relations
+  folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@index([folderId])
+  @@map("attachments")
+}
+
+enum AttachmentType {
+  EVIDENCE
+  CONTRACT
+  DOCUMENT
+  OTHER
+}
+
+// Modèle Entrée de Chronologie (Timeline)
+model TimelineEntry {
+  id          String            @id @default(uuid())
+  folderId    String            @map("folder_id")
+  title       String
+  description String            @db.Text
+  type        TimelineEntryType
+  date        DateTime
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  // Relations
+  folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@index([folderId])
+  @@map("timeline_entries")
+}
+
+enum TimelineEntryType {
+  FACT
+  PROCEDURE
+  HEARING
+  DEADLINE
+  EVENT
+}
+
+// Modèle Document Généré
+model GeneratedDocument {
+  id           String               @id @default(uuid())
+  folderId     String               @map("folder_id")
+  title        String
+  type         GeneratedDocumentType
+  content      String               @db.LongText
+  createdAt    DateTime             @default(now()) @map("created_at")
+  lastModified DateTime             @updatedAt @map("last_modified")
+
+  // Relations
+  folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@index([folderId])
+  @@map("generated_documents")
+}
+
+enum GeneratedDocumentType {
+  CONTRACT
+  CONCLUSION
+  NOTE
+  LETTER
+  REPORT
+}
+
+// Modèle Échéance (Deadline)
+model Deadline {
+  id          String         @id @default(uuid())
+  folderId    String         @map("folder_id")
+  title       String
+  description String         @db.Text
+  dueDate     DateTime       @map("due_date")
+  priority    Priority
+  status      DeadlineStatus @default(PENDING)
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@index([folderId])
+  @@index([status])
+  @@map("deadlines")
 }
 
 enum Priority {
@@ -74,77 +152,45 @@ enum Priority {
   URGENT
 }
 
-// Modèle Document
-model Document {
-  id           String       @id @default(uuid())
-  title        String
-  filename     String
-  filepath     String
-  filesize     Int
-  mimetype     String
-  documentType DocumentType @default(OTHER)
-  projectId    String?
-  userId       String
-  isIndexed    Boolean      @default(false) // Pour le RAG
-  qdrantId     String?      @unique // ID dans Qdrant
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
-  // Relations
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-
-  @@index([userId])
-  @@index([projectId])
-  @@index([isIndexed])
-  @@map("documents")
+enum DeadlineStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
 }
 
-enum DocumentType {
-  CONTRACT
-  LEGAL_NOTICE
-  COURT_DECISION
-  CORRESPONDENCE
-  ID_DOCUMENT
-  PROOF
-  OTHER
-}
-
-// Modèle Session de Conversation
-model ConversationSession {
+// Modèle Conversation (Chat)
+model Conversation {
   id        String   @id @default(uuid())
+  userId    String   @map("user_id")
   title     String
-  projectId String?
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  folderId  String?  @map("folder_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project  Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  folder   Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
   messages Message[]
 
   @@index([userId])
-  @@index([projectId])
-  @@map("conversation_sessions")
+  @@index([folderId])
+  @@map("conversations")
 }
 
-// Modèle Message (Conversation)
+// Modèle Message
 model Message {
-  id          String      @id @default(uuid())
-  sessionId   String
-  userId      String
-  role        MessageRole
-  content     String      @db.Text
-  audioUrl    String?     // Pour les messages audio
-  messageType MessageType @default(TEXT)
-  createdAt   DateTime    @default(now())
+  id             String      @id @default(uuid())
+  conversationId String      @map("conversation_id")
+  userId         String      @map("user_id")
+  role           MessageRole
+  content        String      @db.Text
+  createdAt      DateTime    @default(now()) @map("created_at")
 
   // Relations
-  session ConversationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([sessionId])
+  @@index([conversationId])
   @@index([userId])
   @@map("messages")
 }
@@ -152,56 +198,4 @@ model Message {
 enum MessageRole {
   USER
   ASSISTANT
-  SYSTEM
-}
-
-enum MessageType {
-  TEXT
-  AUDIO
-  IMAGE
-}
-
-// Modèle Contrat (Généré ou Édité)
-model Contract {
-  id          String         @id @default(uuid())
-  title       String
-  content     String         @db.LongText
-  projectId   String
-  status      ContractStatus @default(DRAFT)
-  version     Int            @default(1)
-  generatedBy String?        // "AI" ou user ID
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-
-  // Relations
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@index([projectId])
-  @@index([status])
-  @@map("contracts")
-}
-
-enum ContractStatus {
-  DRAFT
-  REVIEW
-  APPROVED
-  SIGNED
-  ARCHIVED
-}
-
-// Modèle Historique d'actions
-model ActivityLog {
-  id          String   @id @default(uuid())
-  userId      String
-  action      String
-  entityType  String
-  entityId    String
-  description String   @db.Text
-  metadata    Json?
-  createdAt   DateTime @default(now())
-
-  @@index([userId])
-  @@index([entityType, entityId])
-  @@index([createdAt])
-  @@map("activity_logs")
 }

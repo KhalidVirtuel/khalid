@@ -140,7 +140,8 @@ export class ConversationController {
 
         if (searchResults.length > 0) {
           ragContext = searchResults
-            .map((result) => result.payload.text)
+            .filter((result) => result.payload && result.payload.text)
+            .map((result) => result.payload!.text as string)
             .join('\n\n');
         }
       }
