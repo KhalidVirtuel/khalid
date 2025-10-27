@@ -6,71 +6,49 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🚀 Initialisation de la base de données...');
 
-  // Créer un utilisateur admin par défaut
-  const adminEmail = 'admin@jure-ai.com';
-  const existingAdmin = await prisma.user.findUnique({
-    where: { email: adminEmail },
-  });
-
-  if (!existingAdmin) {
-    const hashedPassword = await bcrypt.hash('Admin123!', 12);
-
-    const admin = await prisma.user.create({
-      data: {
-        email: adminEmail,
-        password: hashedPassword,
-        name: 'Administrateur',
-        role: 'ADMIN',
-      },
-    });
-
-    console.log('✅ Utilisateur admin créé:', admin.email);
-  } else {
-    console.log('ℹ️  Utilisateur admin existe déjà');
-  }
-
-  // Créer un avocat de test
+  // Créer un utilisateur avocat de test
   const lawyerEmail = 'avocat@jure-ai.com';
   const existingLawyer = await prisma.user.findUnique({
     where: { email: lawyerEmail },
   });
 
   if (!existingLawyer) {
-    const hashedPassword = await bcrypt.hash('Lawyer123!', 12);
+    const hashedPassword = await bcrypt.hash('Avocat123!', 12);
 
     const lawyer = await prisma.user.create({
       data: {
         email: lawyerEmail,
         password: hashedPassword,
-        name: 'Jean Dupont',
-        role: 'LAWYER',
-        phone: '+33612345678',
-        address: '123 Rue de la Loi, 75001 Paris',
+        firstName: 'Jean',
+        lastName: 'Dupont',
+        lawFirm: 'Cabinet Dupont & Associés',
+        legalSpecialty: 'droit_commercial',
       },
     });
 
     console.log('✅ Utilisateur avocat créé:', lawyer.email);
+    console.log('   Email:', lawyer.email);
+    console.log('   Mot de passe: Avocat123!');
 
-    // Créer un projet de démonstration
-    const project = await prisma.project.create({
+    // Créer un dossier de démonstration
+    const folder = await prisma.folder.create({
       data: {
-        title: 'Affaire Démo - Litige Commercial',
+        name: 'Dossier Démo - Litige Commercial',
         description:
-          'Projet de démonstration pour tester les fonctionnalités du système.',
-        status: 'OPEN',
-        priority: 'MEDIUM',
+          'Dossier de démonstration pour tester les fonctionnalités du système.',
+        color: '#3b82f6',
         userId: lawyer.id,
       },
     });
 
-    console.log('✅ Projet de démonstration créé:', project.title);
+    console.log('✅ Dossier de démonstration créé:', folder.name);
 
-    // Créer une session de conversation de test
-    const session = await prisma.conversationSession.create({
+    // Créer une conversation de test
+    const conversation = await prisma.conversation.create({
       data: {
         title: 'Consultation initiale',
         userId: lawyer.id,
-        projectId: project.id,
+        folderId: folder.id,
       },
     });
 
@@ -78,29 +56,67 @@ async function main() {
     await prisma.message.createMany({
       data: [
         {
-          sessionId: session.id,
+          conversationId: conversation.id,
           userId: lawyer.id,
           role: 'USER',
-          content: 'Bonjour, j\'ai besoin de conseils pour un litige commercial.',
-          messageType: 'TEXT',
+          content: "Bonjour, j'ai besoin de conseils pour un litige commercial.",
         },
         {
-          sessionId: session.id,
+          conversationId: conversation.id,
           userId: lawyer.id,
           role: 'ASSISTANT',
           content:
             'Bonjour ! Je suis là pour vous aider. Pouvez-vous me donner plus de détails sur ce litige commercial ?',
-          messageType: 'TEXT',
         },
       ],
     });
 
-    console.log('✅ Session de conversation créée avec des messages de test');
+    console.log('✅ Conversation créée avec des messages de test');
+
+    // Créer une pièce jointe de test
+    await prisma.attachment.create({
+      data: {
+        folderId: folder.id,
+        name: 'Contrat Commercial.pdf',
+        type: 'CONTRACT',
+        url: '/uploads/demo/contrat.pdf',
+        size: 245760, // 240 KB
+      },
+    });
+
+    // Créer un événement de chronologie
+    await prisma.timelineEntry.create({
+      data: {
+        folderId: folder.id,
+        title: 'Signature du contrat',
+        description: 'Signature du contrat commercial initial',
+        type: 'EVENT',
+        date: new Date('2024-01-15'),
+      },
+    });
+
+    // Créer une échéance
+    await prisma.deadline.create({
+      data: {
+        folderId: folder.id,
+        title: 'Réponse à la mise en demeure',
+        description: 'Date limite pour répondre à la mise en demeure',
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Dans 7 jours
+        priority: 'HIGH',
+        status: 'PENDING',
+      },
+    });
+
+    console.log('✅ Pièce jointe, chronologie et échéance créées');
+
   } else {
     console.log('ℹ️  Utilisateur avocat existe déjà');
   }
 
-  console.log('✅ Initialisation terminée !');
+  console.log('\n✅ Initialisation terminée !');
+  console.log('\n📝 Identifiants de test:');
+  console.log('   Email: avocat@jure-ai.com');
+  console.log('   Mot de passe: Avocat123!');
 }
 
 main()
