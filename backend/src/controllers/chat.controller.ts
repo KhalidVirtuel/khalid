@@ -3,6 +3,7 @@ import prisma from '../config/database';
 import { AuthRequest } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { llmService } from '../services/llm.service';
+import { qdrantService } from '../services/qdrant.service';
 
 export class ChatController {
   async createConversation(req: AuthRequest, res: Response) {
@@ -122,8 +123,26 @@ export class ChatController {
         content: msg.content,
       }));
 
-      // Générer la réponse avec l'IA
-      const aiResponse = await llmService.chat(conversationMessages, '');
+      // Rechercher dans la base de connaissance (RAG)
+      let context = '';
+      try {
+        const ragResults = await qdrantService.search(content, 3, {
+          must: [{ key: 'userId', match: { value: userId } }],
+        });
+
+        if (ragResults.length > 0) {
+          context = 'Documents pertinents de votre base de connaissance:\n\n';
+          ragResults.forEach((result, index) => {
+            context += `[Document ${index + 1}] ${result.payload?.filename}:\n${result.payload?.text}\n\n`;
+          });
+        }
+      } catch (error) {
+        console.log('⚠️ Recherche RAG non disponible ou erreur:', error);
+        // Continue sans contexte si RAG échoue
+      }
+
+      // Générer la réponse avec l'IA (avec contexte RAG si disponible)
+      const aiResponse = await llmService.chat(conversationMessages, context);
 
       // Sauvegarder la réponse de l'assistant
       const assistantMessage = await prisma.message.create({

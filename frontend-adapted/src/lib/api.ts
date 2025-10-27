@@ -299,3 +299,84 @@ export const chatAPI = {
     await api.delete(`/chat/conversations/${id}`);
   },
 };
+
+// Types pour la base de connaissance
+export interface KnowledgeDocument {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  originalName: string;
+  size: number;
+  createdAt: string;
+  textContent?: string;
+}
+
+export interface SearchResult {
+  id: string;
+  score: number;
+  text: string;
+  documentId: string;
+  filename: string;
+  chunkIndex: number;
+}
+
+// Base de connaissance (RAG)
+export const knowledgeAPI = {
+  // Upload un document
+  uploadDocument: async (
+    file: File,
+    metadata: { title?: string; description?: string; category?: string }
+  ): Promise<{ document: KnowledgeDocument }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (metadata.title) formData.append('title', metadata.title);
+    if (metadata.description) formData.append('description', metadata.description);
+    if (metadata.category) formData.append('category', metadata.category);
+
+    const response = await api.post<{ document: KnowledgeDocument }>('/knowledge/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  // Lister tous les documents
+  listDocuments: async (category?: string): Promise<{ documents: KnowledgeDocument[] }> => {
+    const params = category ? { category } : {};
+    const response = await api.get<{ documents: KnowledgeDocument[] }>('/knowledge', { params });
+    return response.data;
+  },
+
+  // Récupérer un document spécifique
+  getDocument: async (id: string): Promise<{ document: KnowledgeDocument }> => {
+    const response = await api.get<{ document: KnowledgeDocument }>(`/knowledge/${id}`);
+    return response.data;
+  },
+
+  // Rechercher dans la base de connaissance
+  search: async (
+    query: string,
+    limit?: number,
+    category?: string
+  ): Promise<{ query: string; results: SearchResult[] }> => {
+    const response = await api.post<{ query: string; results: SearchResult[] }>('/knowledge/search', {
+      query,
+      limit: limit || 5,
+      category,
+    });
+    return response.data;
+  },
+
+  // Supprimer un document
+  deleteDocument: async (id: string): Promise<void> => {
+    await api.delete(`/knowledge/${id}`);
+  },
+
+  // Télécharger un document
+  downloadDocument: async (id: string): Promise<Blob> => {
+    const response = await api.get(`/knowledge/${id}/download`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+};

@@ -8,6 +8,7 @@ import { errorHandler } from './middleware/errorHandler';
 import authRoutes from './routes/auth.routes';
 import folderRoutes from './routes/folder.routes';
 import chatRoutes from './routes/chat.routes';
+import knowledgeRoutes from './routes/knowledge.routes';
 
 const app = express();
 const server = createServer(app);
@@ -26,6 +27,7 @@ app.get('/', (req: Request, res: Response) => {
       auth: '/api/auth',
       folders: '/api/folders',
       chat: '/api/chat',
+      knowledge: '/api/knowledge',
     },
   });
 });
@@ -38,6 +40,7 @@ app.get('/health', (req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/knowledge', knowledgeRoutes);
 
 // Error Handler
 app.use(errorHandler);

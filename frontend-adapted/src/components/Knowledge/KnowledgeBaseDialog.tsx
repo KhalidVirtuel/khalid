@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -11,295 +10,443 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, FileText, Download, BookOpen } from "lucide-react";
+import { Search, FileText, Download, Upload, BookOpen, Trash2, Loader2, Database } from "lucide-react";
+import { knowledgeAPI, KnowledgeDocument, SearchResult } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface KnowledgeBaseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-// Legal sources data with expanded information
-const legalSources = [
-  {
-    id: "code-penal",
-    title: "Le Code pénal marocain",
-    description: "Ensemble des lois définissant les infractions et fixant les peines applicables",
-    articles: [
-      { id: "477", title: "Article 477", content: "Quiconque, par fraude ou violence, enlève ou fait enlever un mineur de moins de dix-huit ans..." },
-      { id: "485", title: "Article 485", content: "Est puni de la réclusion de cinq à dix ans tout attentat à la pudeur consommé ou tenté..." },
-      { id: "496", title: "Article 496", content: "Quiconque, par violence, contrainte ou menace, a commis un viol, est puni de la réclusion..." },
-    ],
-    downloadUrl: "/documents/code-penal-maroc.pdf"
-  },
-  {
-    id: "code-procedure",
-    title: "Le Code de procédure pénale",
-    description: "Règles régissant le déroulement du procès pénal",
-    articles: [
-      { id: "1", title: "Article 1", content: "L'action publique pour l'application des peines est mise en mouvement et exercée par les magistrats..." },
-      { id: "45", title: "Article 45", content: "La police judiciaire est exercée, sous la direction du procureur du Roi..." },
-      { id: "73", title: "Article 73", content: "Les officiers de police judiciaire peuvent, en cas de crime flagrant..." },
-    ],
-    downloadUrl: "/documents/code-procedure-penale-maroc.pdf"
-  },
-  {
-    id: "code-civil",
-    title: "Le Code civil",
-    description: "Lois régissant les rapports entre les personnes physiques ou morales",
-    articles: [
-      { id: "618", title: "Article 618", content: "Le contrat est une convention par laquelle une ou plusieurs personnes s'obligent..." },
-      { id: "723", title: "Article 723", content: "Toute obligation doit être exécutée de bonne foi..." },
-      { id: "769", title: "Article 769", content: "Le débiteur répond du dommage causé par son inexécution..." },
-    ],
-    downloadUrl: "/documents/code-civil-maroc.pdf"
-  },
-  {
-    id: "code-travail",
-    title: "Le Code du travail",
-    description: "Législation encadrant les relations employeur-employé",
-    articles: [
-      { id: "1", title: "Article 1", content: "Est considérée comme salariée toute personne qui s'engage à exercer son activité..." },
-      { id: "14", title: "Article 14", content: "La période d'essai est la période pendant laquelle chacune des parties peut rompre..." },
-      { id: "152", title: "Article 152", content: "La durée normale du travail des salariés est fixée à 2288 heures par année..." },
-    ],
-    downloadUrl: "/documents/code-travail-maroc.pdf"
-  },
-  {
-    id: "autres-domaines",
-    title: "Le droit commercial, immobilier, des sociétés, de la famille, des étrangers, etc.",
-    description: "Ensemble des domaines juridiques spécialisés",
-    articles: [
-      { id: "comm-1", title: "Code de Commerce - Article 1", content: "Les commerçants sont ceux qui exercent des actes de commerce et en font leur profession habituelle..." },
-      { id: "fam-1", title: "Code de la Famille - Article 1", content: "Le présent code est dénommé Code de la Famille. Il est désigné dans la présente loi par le Code..." },
-      { id: "soc-1", title: "Loi sur les Sociétés - Article 1", content: "Les sociétés commerciales sont constituées par deux ou plusieurs personnes qui conviennent..." },
-    ],
-    downloadUrl: "/documents/codes-specialises-maroc.pdf"
-  },
-  {
-    id: "structure-judiciaire",
-    title: "La structure judiciaire du Maroc",
-    description: "Procédures, tribunaux, délais, autorités compétentes",
-    articles: [
-      { id: "org-1", title: "Organisation Judiciaire - Article 1", content: "La justice est rendue sur l'ensemble du territoire du Royaume au nom de Sa Majesté le Roi..." },
-      { id: "org-2", title: "Tribunaux de Première Instance", content: "Les tribunaux de première instance sont compétents pour connaître de toutes les affaires..." },
-      { id: "org-3", title: "Cours d'Appel", content: "Les cours d'appel connaissent des appels des jugements des tribunaux de première instance..." },
-    ],
-    downloadUrl: "/documents/organisation-judiciaire-maroc.pdf"
-  },
-  {
-    id: "documents-legaux",
-    title: "Les documents légaux marocains courants",
-    description: "Certificats médicaux, plaintes, PV de police, convocations, actes notariés, statuts, contrats de travail…",
-    templates: [
-      { id: "plainte", title: "Modèle de plainte", description: "Format standard pour déposer une plainte auprès des autorités", downloadUrl: "/templates/modele-plainte.docx" },
-      { id: "contrat-travail", title: "Contrat de travail", description: "Contrat de travail standard conforme au Code du travail marocain", downloadUrl: "/templates/contrat-travail.docx" },
-      { id: "statuts", title: "Statuts de société", description: "Modèle de statuts pour la création d'une SARL", downloadUrl: "/templates/statuts-sarl.docx" },
-    ]
-  },
+const categories = [
+  { value: "general", label: "Général" },
+  { value: "code_penal", label: "Code Pénal" },
+  { value: "code_civil", label: "Code Civil" },
+  { value: "code_travail", label: "Code du Travail" },
+  { value: "code_commerce", label: "Code de Commerce" },
+  { value: "code_famille", label: "Code de la Famille" },
+  { value: "jurisprudence", label: "Jurisprudence" },
+  { value: "doctrine", label: "Doctrine" },
 ];
 
 const KnowledgeBaseDialog = ({ open, onOpenChange }: KnowledgeBaseDialogProps) => {
+  const [activeTab, setActiveTab] = useState("documents");
+  const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredSources, setFilteredSources] = useState(legalSources);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [selectedSource, setSelectedSource] = useState<any>(null);
+  const { toast } = useToast();
 
+  // Upload state
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadDescription, setUploadDescription] = useState("");
+  const [uploadCategory, setUploadCategory] = useState("general");
+  const [uploading, setUploading] = useState(false);
+
+  // Charger les documents
+  const loadDocuments = async () => {
+    try {
+      setLoading(true);
+      const response = await knowledgeAPI.listDocuments();
+      setDocuments(response.documents);
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.response?.data?.error || "Erreur lors du chargement des documents",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Charger les documents au montage
   useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredSources(legalSources);
+    if (open) {
+      loadDocuments();
+    }
+  }, [open]);
+
+  // Upload de document
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!uploadFile) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez sélectionner un fichier",
+        variant: "destructive",
+      });
       return;
     }
 
-    const query = searchQuery.toLowerCase();
-    const filtered = legalSources.filter(source => 
-      source.title.toLowerCase().includes(query) || 
-      source.description.toLowerCase().includes(query) ||
-      (source.articles && source.articles.some(article => 
-        article.title.toLowerCase().includes(query) || 
-        article.content.toLowerCase().includes(query)
-      ))
-    );
-    
-    setFilteredSources(filtered);
-  }, [searchQuery]);
+    try {
+      setUploading(true);
+      await knowledgeAPI.uploadDocument(uploadFile, {
+        title: uploadTitle || uploadFile.name,
+        description: uploadDescription,
+        category: uploadCategory,
+      });
 
-  const handleSourceClick = (source: any) => {
-    setSelectedSource(source);
-    setActiveTab("details");
+      toast({
+        title: "Succès",
+        description: "Document ajouté à la base de connaissance",
+      });
+
+      // Reset form
+      setUploadFile(null);
+      setUploadTitle("");
+      setUploadDescription("");
+      setUploadCategory("general");
+
+      // Reload documents
+      await loadDocuments();
+      setActiveTab("documents");
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.response?.data?.error || "Erreur lors de l'upload",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
   };
 
-  const handleBackClick = () => {
-    setActiveTab("overview");
-    setSelectedSource(null);
+  // Recherche
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!searchQuery.trim()) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez entrer un terme de recherche",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSearching(true);
+      const response = await knowledgeAPI.search(searchQuery, 10);
+      setSearchResults(response.results);
+      setActiveTab("search");
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.response?.data?.error || "Erreur lors de la recherche",
+        variant: "destructive",
+      });
+    } finally {
+      setSearching(false);
+    }
   };
 
-  const handleDownloadClick = (url: string, event: React.MouseEvent) => {
-    event.stopPropagation();
-    // In a real app, this would download the file
-    console.log(`Downloading: ${url}`);
-    // For now, just show a message
-    alert(`Dans une version de production, ceci téléchargerait le document: ${url}`);
+  // Supprimer un document
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer "${name}" ?`)) {
+      return;
+    }
+
+    try {
+      await knowledgeAPI.deleteDocument(id);
+      toast({
+        title: "Succès",
+        description: "Document supprimé",
+      });
+      await loadDocuments();
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.response?.data?.error || "Erreur lors de la suppression",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Télécharger un document
+  const handleDownload = async (id: string, filename: string) => {
+    try {
+      const blob = await knowledgeAPI.downloadDocument(id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.response?.data?.error || "Erreur lors du téléchargement",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+  };
+
+  const formatDate = (dateString: string): string => {
+    return new Date(dateString).toLocaleDateString("fr-FR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[80vh] flex flex-col">
+      <DialogContent className="sm:max-w-[900px] max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold flex items-center gap-2">
-            <BookOpen className="h-5 w-5" />
-            Base de connaissances juridiques
+            <Database className="h-5 w-5" />
+            Base de connaissances (RAG)
           </DialogTitle>
-          <div className="relative mt-2">
+
+          {/* Search bar */}
+          <form onSubmit={handleSearch} className="relative mt-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Rechercher des codes, articles, ou sujets juridiques..."
-              className="w-full pl-9 pr-4"
+              placeholder="Rechercher dans vos documents juridiques..."
+              className="w-full pl-9 pr-24"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-          </div>
+            <Button
+              type="submit"
+              size="sm"
+              className="absolute right-1 top-1"
+              disabled={searching}
+            >
+              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Rechercher"}
+            </Button>
+          </form>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
-            <TabsTrigger value="details" disabled={!selectedSource}>
-              {selectedSource ? selectedSource.title.substring(0, 20) + "..." : "Détails"}
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="documents">
+              <FileText className="h-4 w-4 mr-2" />
+              Documents ({documents.length})
+            </TabsTrigger>
+            <TabsTrigger value="upload">
+              <Upload className="h-4 w-4 mr-2" />
+              Ajouter
+            </TabsTrigger>
+            <TabsTrigger value="search">
+              <Search className="h-4 w-4 mr-2" />
+              Résultats ({searchResults.length})
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="flex-1 overflow-hidden">
-            <ScrollArea className="h-[400px] pr-4">
-              <div className="space-y-4 py-2">
-                {filteredSources.map((source) => (
-                  <div 
-                    key={source.id} 
-                    className="border rounded-md p-4 hover:bg-slate-50 cursor-pointer transition-colors"
-                    onClick={() => handleSourceClick(source)}
-                  >
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-medium text-black mb-2">{source.title}</h3>
-                      {source.downloadUrl && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={(e) => handleDownloadClick(source.downloadUrl, e)}
-                          title="Télécharger le document"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{source.description}</p>
-                    {source.articles && (
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        {source.articles.length} articles disponibles
-                      </div>
-                    )}
-                    {source.templates && (
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        {source.templates.length} modèles disponibles
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {filteredSources.length === 0 && (
-                  <div className="text-center py-10 text-muted-foreground">
-                    Aucun résultat trouvé pour "{searchQuery}"
-                  </div>
-                )}
-              </div>
+          {/* Documents List */}
+          <TabsContent value="documents" className="flex-1 overflow-hidden">
+            <ScrollArea className="h-[450px] pr-4">
+              {loading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : documents.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">
+                  <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Aucun document dans votre base de connaissance</p>
+                  <p className="text-sm mt-2">Ajoutez des documents pour améliorer les réponses de l'IA</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Titre</TableHead>
+                      <TableHead>Catégorie</TableHead>
+                      <TableHead>Taille</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {documents.map((doc) => (
+                      <TableRow key={doc.id}>
+                        <TableCell className="font-medium">
+                          <div>
+                            <div>{doc.title}</div>
+                            {doc.description && (
+                              <div className="text-xs text-muted-foreground">{doc.description}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                            {categories.find((c) => c.value === doc.category)?.label || doc.category}
+                          </span>
+                        </TableCell>
+                        <TableCell>{formatFileSize(doc.size)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDate(doc.createdAt)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDownload(doc.id, doc.originalName)}
+                              title="Télécharger"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(doc.id, doc.title)}
+                              title="Supprimer"
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="details" className="flex-1 overflow-hidden">
-            {selectedSource && (
-              <div className="flex flex-col h-full">
-                <div className="flex items-center justify-between mb-4">
-                  <Button variant="outline" size="sm" onClick={handleBackClick}>
-                    Retour
-                  </Button>
-                  {selectedSource.downloadUrl && (
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={(e) => handleDownloadClick(selectedSource.downloadUrl, e)}
-                      className="flex items-center gap-2"
-                    >
-                      <Download className="h-4 w-4" />
-                      Télécharger le document complet
-                    </Button>
-                  )}
+          {/* Upload Form */}
+          <TabsContent value="upload" className="flex-1 overflow-hidden">
+            <ScrollArea className="h-[450px] pr-4">
+              <form onSubmit={handleUpload} className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="file">Fichier *</Label>
+                  <Input
+                    id="file"
+                    type="file"
+                    accept=".pdf,.txt,.doc,.docx"
+                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Formats acceptés : PDF, TXT, DOC, DOCX (max 10MB)
+                  </p>
                 </div>
 
-                <ScrollArea className="flex-1 pr-4">
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-lg font-medium text-black mb-1">{selectedSource.title}</h3>
-                      <p className="text-sm text-muted-foreground mb-4">{selectedSource.description}</p>
-                    </div>
+                <div className="space-y-2">
+                  <Label htmlFor="title">Titre</Label>
+                  <Input
+                    id="title"
+                    placeholder="Nom du document (optionnel)"
+                    value={uploadTitle}
+                    onChange={(e) => setUploadTitle(e.target.value)}
+                  />
+                </div>
 
-                    {selectedSource.articles && selectedSource.articles.length > 0 && (
-                      <div>
-                        <h4 className="text-md font-medium mb-2 flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          Articles principaux
-                        </h4>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-[100px]">Référence</TableHead>
-                              <TableHead>Contenu</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {selectedSource.articles.map((article: any) => (
-                              <TableRow key={article.id}>
-                                <TableCell className="font-medium">{article.title}</TableCell>
-                                <TableCell>{article.content}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Description du contenu (optionnel)"
+                    value={uploadDescription}
+                    onChange={(e) => setUploadDescription(e.target.value)}
+                    rows={3}
+                  />
+                </div>
 
-                    {selectedSource.templates && selectedSource.templates.length > 0 && (
-                      <div className="mt-6">
-                        <h4 className="text-md font-medium mb-2 flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          Modèles de documents
-                        </h4>
-                        <div className="space-y-2">
-                          {selectedSource.templates.map((template: any) => (
-                            <div key={template.id} className="border rounded-md p-3 flex justify-between items-center">
-                              <div>
-                                <div className="font-medium text-black">{template.title}</div>
-                                <div className="text-sm text-muted-foreground">{template.description}</div>
-                              </div>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                onClick={(e) => handleDownloadClick(template.downloadUrl, e)}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
+                <div className="space-y-2">
+                  <Label htmlFor="category">Catégorie *</Label>
+                  <Select value={uploadCategory} onValueChange={setUploadCategory}>
+                    <SelectTrigger id="category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button type="submit" className="w-full" disabled={uploading || !uploadFile}>
+                  {uploading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Upload en cours...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Ajouter à la base de connaissance
+                    </>
+                  )}
+                </Button>
+              </form>
+            </ScrollArea>
+          </TabsContent>
+
+          {/* Search Results */}
+          <TabsContent value="search" className="flex-1 overflow-hidden">
+            <ScrollArea className="h-[450px] pr-4">
+              {searchResults.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">
+                  <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Aucun résultat</p>
+                  <p className="text-sm mt-2">Effectuez une recherche pour trouver des documents pertinents</p>
+                </div>
+              ) : (
+                <div className="space-y-4 py-2">
+                  <div className="text-sm text-muted-foreground mb-4">
+                    {searchResults.length} résultat(s) trouvé(s) pour "{searchQuery}"
+                  </div>
+                  {searchResults.map((result, index) => (
+                    <div key={result.id} className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">{result.filename}</span>
+                            <span className="text-xs text-muted-foreground">
+                              (Score: {(result.score * 100).toFixed(1)}%)
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Chunk #{result.chunkIndex + 1}
+                          </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
-            )}
+                      <div className="text-sm bg-slate-50 p-3 rounded border">
+                        {result.text.substring(0, 300)}
+                        {result.text.length > 300 && "..."}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
           </TabsContent>
         </Tabs>
 
-        <div className="text-xs text-muted-foreground mt-2 italic">
-          Cette base de connaissances contient les sources juridiques marocaines utilisées pour entraîner notre modèle d'assistant juridique.
+        <div className="text-xs text-muted-foreground mt-2 italic border-t pt-2">
+          💡 Les documents ajoutés ici sont utilisés par l'IA pour enrichir ses réponses avec votre propre base de connaissance juridique.
         </div>
       </DialogContent>
     </Dialog>
