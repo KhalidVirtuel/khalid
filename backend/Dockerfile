@@ -21,6 +21,9 @@ RUN npx prisma generate
 # Copy source code
 COPY src ./src
 
+# Copy scripts
+COPY scripts ./scripts
+
 # Build TypeScript
 RUN npm run build
 
