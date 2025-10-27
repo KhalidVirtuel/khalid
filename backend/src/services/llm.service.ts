@@ -30,7 +30,7 @@ Règles importantes:
       };
 
       const response = await this.groq.chat.completions.create({
-        model: 'mixtral-8x7b-32768',
+        model: 'llama-3.3-70b-versatile',
         messages: [systemMessage, ...messages],
         temperature: 0.7,
         max_tokens: 2048,
@@ -55,7 +55,7 @@ Le contrat doit être complet, professionnel et conforme au droit français.
 Inclure toutes les clauses standards nécessaires.`;
 
       const response = await this.groq.chat.completions.create({
-        model: 'mixtral-8x7b-32768',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           {
             role: 'system',
@@ -84,7 +84,7 @@ Inclure toutes les clauses standards nécessaires.`;
         : `Analyse le document suivant et fournis un résumé détaillé:\n\n${documentText}`;
 
       const response = await this.groq.chat.completions.create({
-        model: 'mixtral-8x7b-32768',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           {
             role: 'system',
