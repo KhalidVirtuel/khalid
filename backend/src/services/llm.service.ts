@@ -1,13 +1,13 @@
-import Groq from 'groq-sdk';
+import OpenAI from 'openai';
 import env from '../config/env';
 import { ConversationMessage } from '../types';
 
 class LLMService {
-  private groq: Groq;
+  private openai: OpenAI;
 
   constructor() {
-    this.groq = new Groq({
-      apiKey: env.GROQ_API_KEY,
+    this.openai = new OpenAI({
+      apiKey: env.OPENAI_API_KEY,
     });
   }
 
@@ -29,8 +29,8 @@ Règles importantes:
 - Si tu n'es pas sûr, le dire clairement`,
       };
 
-      const response = await this.groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+      const response = await this.openai.chat.completions.create({
+        model: env.OPENAI_CHAT_MODEL,
         messages: [systemMessage, ...messages],
         temperature: 0.7,
         max_tokens: 2048,
@@ -38,7 +38,7 @@ Règles importantes:
 
       return response.choices[0]?.message?.content || '';
     } catch (error) {
-      console.error('❌ Erreur lors de l\'appel à Groq:', error);
+      console.error('❌ Erreur lors de l\'appel à OpenAI:', error);
       throw error;
     }
   }
@@ -54,8 +54,8 @@ ${JSON.stringify(details, null, 2)}
 Le contrat doit être complet, professionnel et conforme au droit français.
 Inclure toutes les clauses standards nécessaires.`;
 
-      const response = await this.groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+      const response = await this.openai.chat.completions.create({
+        model: env.OPENAI_CHAT_MODEL,
         messages: [
           {
             role: 'system',
@@ -83,8 +83,8 @@ Inclure toutes les clauses standards nécessaires.`;
         ? `Analyse le document suivant et réponds à la question: ${question}\n\nDocument:\n${documentText}`
         : `Analyse le document suivant et fournis un résumé détaillé:\n\n${documentText}`;
 
-      const response = await this.groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+      const response = await this.openai.chat.completions.create({
+        model: env.OPENAI_CHAT_MODEL,
         messages: [
           {
             role: 'system',
