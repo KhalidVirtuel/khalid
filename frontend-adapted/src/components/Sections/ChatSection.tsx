@@ -3,31 +3,29 @@ import { Plus, Scale, Users, Calendar, Send, FileText } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { useConversations } from '@/hooks/useConversations';
-import { streamLegalChat } from '@/utils/legalAI';
 import ChatContainer from '../Chat/ChatContainer';
 import { useChatStore } from '@/store/chatStore';
 
 const ChatSection: React.FC = () => {
   const [message, setMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { setActiveFolderId } = useChatStore();
-  
+
   const {
     conversations,
-    currentConversation,
-    messages,
-    loading,
+    activeConversationId,
+    setActiveConversationId,
+    setActiveFolderId,
+    addMessage,
     createConversation,
-    saveMessage,
-    selectConversation,
-    setMessages,
-    loadConversations,
-  } = useConversations();
+    isTyping,
+  } = useChatStore();
+
+  // Get current conversation and its messages
+  const currentConversation = conversations.find((c) => c.id === activeConversationId);
+  const messages = currentConversation?.messages || [];
 
   const handleOpenUpload = () => fileInputRef.current?.click();
-  
+
   const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -37,78 +35,28 @@ const ChatSection: React.FC = () => {
   const handleStartNewChat = async () => {
     const messageToSend = message.trim();
     if (!messageToSend) return;
-    
+
     try {
       // Clear folder view to show chat
       setActiveFolderId(null);
-      
+
       // Create new conversation if needed
-      let conversation = currentConversation;
-      if (!conversation) {
-        const title = messageToSend.slice(0, 50) + (messageToSend.length > 50 ? '...' : '');
-        conversation = await createConversation(title);
-        if (!conversation) {
+      let conversationId = activeConversationId;
+      if (!conversationId) {
+        conversationId = await createConversation();
+        if (!conversationId) {
           throw new Error('Failed to create conversation');
         }
+        setActiveConversationId(conversationId);
       }
 
-      // Save user message
-      await saveMessage(conversation.id, 'user', messageToSend);
+      // Send message (this will add both user and assistant messages)
+      await addMessage(conversationId, 'user', messageToSend);
       setMessage('');
-      setIsTyping(true);
-      
-      // Reload conversations to update the list
-      await loadConversations();
 
-      // Stream AI response
-      let aiResponse = '';
-      const tempMessageId = 'temp-' + Date.now();
-      
-      // Add temporary assistant message
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: tempMessageId,
-          conversation_id: conversation.id,
-          role: 'assistant',
-          content: '',
-          created_at: new Date().toISOString(),
-        },
-      ]);
-
-      await streamLegalChat({
-        messages: [
-          ...messages.map((m) => ({ role: m.role, content: m.content })),
-          { role: 'user', content: messageToSend },
-        ],
-        onDelta: (delta) => {
-          aiResponse += delta;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === tempMessageId ? { ...m, content: aiResponse } : m
-            )
-          );
-        },
-        onDone: async () => {
-          setIsTyping(false);
-          // Save final AI response to database
-          const savedMessage = await saveMessage(conversation!.id, 'assistant', aiResponse);
-          if (savedMessage) {
-            // Remove temp message since saveMessage already adds the real one
-            setMessages((prev) => prev.filter((m) => m.id !== tempMessageId));
-          }
-        },
-        onError: (error) => {
-          setIsTyping(false);
-          toast.error(error);
-          // Remove temp message on error
-          setMessages((prev) => prev.filter((m) => m.id !== tempMessageId));
-        },
-      });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
-      toast.error('Erreur lors de l\'envoi du message');
-      setIsTyping(false);
+      toast.error(error.response?.data?.error || 'Erreur lors de l\'envoi du message');
     }
   };
 
@@ -119,7 +67,13 @@ const ChatSection: React.FC = () => {
       {hasMessages && currentConversation ? (
         <div className="animate-fade-in">
           <ChatContainer
-            messages={messages}
+            messages={messages.map((m) => ({
+              id: m.id,
+              conversation_id: currentConversation.id,
+              role: m.role === 'USER' ? 'user' : 'assistant',
+              content: m.content,
+              created_at: new Date(m.timestamp).toISOString(),
+            }))}
             isTyping={isTyping}
             onSendMessage={handleStartNewChat}
             inputValue={message}
